@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import boto3, json, requests, logging, time
-
+from airflow.exceptions import AirflowException
 
 region_name = 'us-east-1'
 
