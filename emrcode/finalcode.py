@@ -6,7 +6,7 @@ from pyspark.sql import functions as f
 from pyspark.sql import SparkSession
 import sys
 import boto3
-import pyspark.sql.utils import AnalysisException
+import pyspark.sql.utils
 
 
 # Initializing Spark
@@ -129,10 +129,23 @@ class Transformation:
                 df = df.withColumn("masked_"+columns,f.sha2(f.col(columns),256))
         return df
         
-    def read_delta_table(self,lookup_location,datasetName):
-        targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
-        return targetTable
+    def casting(self, df, cast_dict):
+        key_list = []
+        for key in cast_dict.keys():
+            key_list.append(key)
         
+        for column in key_list:
+            if cast_dict[column].split(",")[0] == "DecimalType":
+                df = df.withColumn(column,df[column].cast(DecimalType(scale=int(cast_dict[column].split(",")[1]))))
+            elif cast_dict[column] == "ArrayType-StringType":
+                df = df.withColumn(column,f.concat_ws(",",f.col(column)))
+            elif cast_dict[column] == "StringType":
+                df = df.withColumn(column,df[column].cast(StringType))
+        
+        return df
+        
+class Scd2:
+    
     def lookup_dataset(self,df,lookup_location,pii_cols,datasetName):
     
         source_df = df.withColumn("begin_date",f.current_date())
@@ -150,19 +163,22 @@ class Transformation:
         source_df = source_df.select(*columns_needed_source)
 
         try:
-            targetTable = self.read_delta_table(lookup_location,datasetName)
-        except AnalysisException:
+            targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
+            delta_df = targetTable.toDF()
+        except pyspark.sql.utils.AnalysisException:
             print('Table not found')
             source_df = source_df.withColumn("active_flag",f.lit("true"))
             source_df.write.format("delta").mode("overwrite").save(lookup_location+datasetName)
             print('Table Created')
-            targetTable = self.read_delta_table(lookup_location,datasetName)
+            targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
+            delta_df = targetTable.toDF()
+            delta_df.show(100)
 
         for i in columns_needed:
             insert_dict[i] = "updates."+i
             
         insert_dict['begin_date'] = f.current_date()
-        insert_dict['active_flag'] = "true" 
+        insert_dict['active_flag'] = "True" 
         insert_dict['update_date'] = "null"
 
         _condition = datasetName+".active_flag == true AND "+" OR ".join(["updates."+i+" <> "+ datasetName+"."+i for i in [x for x in columns_needed if x.startswith("masked_")]])
@@ -177,7 +193,6 @@ class Transformation:
         targetTable.alias(datasetName).merge(stagedUpdates.alias("updates"),"concat("+str(column)+") = mergeKey").whenMatchedUpdate(
             condition = _condition,
             set = {                  # Set current to false and endDate to source's effective date."active_flag" : "False",
-            "active_flag" : "False",
             "update_date" : f.current_date()
           }
         ).whenNotMatchedInsert(
@@ -187,21 +202,6 @@ class Transformation:
         for i in pii_cols:
             df = df.drop(i).withColumnRenamed("masked_"+i, i)
 
-        return df
-        
-    def casting(self, df, cast_dict):
-        key_list = []
-        for key in cast_dict.keys():
-            key_list.append(key)
-        
-        for column in key_list:
-            if cast_dict[column].split(",")[0] == "DecimalType":
-                df = df.withColumn(column,df[column].cast(DecimalType(scale=int(cast_dict[column].split(",")[1]))))
-            elif cast_dict[column] == "ArrayType-StringType":
-                df = df.withColumn(column,f.concat_ws(",",f.col(column)))
-            elif cast_dict[column] == "StringType":
-                df = df.withColumn(column,df[column].cast(StringType))
-        
         return df
         
         
@@ -216,6 +216,8 @@ if __name__=='__main__':
     # Creating object
     
     obj = Transformation()
+
+    scd2_obj = Scd2()
     
     conf_obj = Configuration(spark_config_loc,datasetName, dataset_path)
         
@@ -241,7 +243,7 @@ if __name__=='__main__':
     
     # Creating a lookup dataset for the masking columns
     
-    df = obj.lookup_dataset(df,conf_obj.lookup_location,conf_obj.pii_cols,datasetName)
+    df = scd2_obj.lookup_dataset(df,conf_obj.lookup_location,conf_obj.pii_cols,datasetName)
     
     # Writing the data to Staging zone after transformation
 
