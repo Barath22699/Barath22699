@@ -17,7 +17,7 @@ spark = SparkSession.builder.appName("Demo").getOrCreate()
 
 spark.sparkContext.addPyFile("/usr/lib/spark/jars/delta-core_2.12-0.8.0.jar")
 
-from delta import *
+from delta import DeltaTable
 
 
 class Configuration:
