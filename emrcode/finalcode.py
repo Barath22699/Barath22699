@@ -15,7 +15,7 @@ spark = SparkSession.builder.appName("Demo").getOrCreate()
 
 # For Delta
 
-spark.sparkContext.addPyFile("s3://barathlandingzone/Dependencies/delta-core_2.12-0.8.0.jar")
+spark.sparkContext.addPyFile("/usr/lib/spark/jars/delta-core_2.12-0.8.0.jar")
 
 from delta import *
 
@@ -164,21 +164,18 @@ class Scd2:
 
         try:
             targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
-            delta_df = targetTable.toDF()
         except pyspark.sql.utils.AnalysisException:
             print('Table not found')
             source_df = source_df.withColumn("active_flag",f.lit("true"))
             source_df.write.format("delta").mode("overwrite").save(lookup_location+datasetName)
             print('Table Created')
             targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
-            delta_df = targetTable.toDF()
-            delta_df.show(100)
 
         for i in columns_needed:
             insert_dict[i] = "updates."+i
             
         insert_dict['begin_date'] = f.current_date()
-        insert_dict['active_flag'] = "True" 
+        insert_dict['active_flag'] = "true" 
         insert_dict['update_date'] = "null"
 
         _condition = datasetName+".active_flag == true AND "+" OR ".join(["updates."+i+" <> "+ datasetName+"."+i for i in [x for x in columns_needed if x.startswith("masked_")]])
@@ -193,6 +190,7 @@ class Scd2:
         targetTable.alias(datasetName).merge(stagedUpdates.alias("updates"),"concat("+str(column)+") = mergeKey").whenMatchedUpdate(
             condition = _condition,
             set = {                  # Set current to false and endDate to source's effective date."active_flag" : "False",
+            "active_flag" : "false"
             "update_date" : f.current_date()
           }
         ).whenNotMatchedInsert(
