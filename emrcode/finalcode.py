@@ -6,7 +6,7 @@ from pyspark.sql import functions as f
 from pyspark.sql import SparkSession
 import sys
 import boto3
-import pyspark.sql.utils
+from pyspark.sql.utils import AnalysisException
 
 
 # Initializing Spark
@@ -164,7 +164,7 @@ class Scd2:
 
         try:
             targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
-        except pyspark.sql.utils.AnalysisException:
+        except AnalysisException:
             print('Table not found')
             source_df = source_df.withColumn("active_flag",f.lit("true"))
             source_df.write.format("delta").mode("overwrite").save(lookup_location+datasetName)
@@ -190,7 +190,7 @@ class Scd2:
         targetTable.alias(datasetName).merge(stagedUpdates.alias("updates"),"concat("+str(column)+") = mergeKey").whenMatchedUpdate(
             condition = _condition,
             set = {                  # Set current to false and endDate to source's effective date."active_flag" : "False",
-            "active_flag" : "false"
+            "active_flag" : "false",
             "update_date" : f.current_date()
           }
         ).whenNotMatchedInsert(
