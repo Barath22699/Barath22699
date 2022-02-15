@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.exceptions import AirflowException
 from datetime import datetime, timedelta
 import boto3, json, s3fs, time, decimal
 import pandas as pd
