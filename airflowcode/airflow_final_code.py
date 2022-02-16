@@ -6,7 +6,6 @@ import pandas as pd
 import pyarrow.parquet as pq
 import emr_dependency as emr
 
-
 def config_data(**kwargs):
     app_config_path = kwargs['dag_run'].conf['app_config_path']
     path_list = app_config_path.replace(":","").split("/")
