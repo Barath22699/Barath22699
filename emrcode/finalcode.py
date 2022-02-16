@@ -167,7 +167,7 @@ class Scd2:
         except AnalysisException:
             print('Table not found')
             source_df = source_df.withColumn("active_flag",f.lit("true"))
-            source_df.write.format("delta").mode("overwrite").save(lookup_location+datasetName)
+            source_df.write.format("delta").save(lookup_location+datasetName)
             print('Table Created')
             targetTable = DeltaTable.forPath(spark,lookup_location+datasetName)
 
