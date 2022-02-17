@@ -50,7 +50,8 @@ def create_cluster(region_name, cluster_name='barath_Cluster_' + str(datetime.no
                 }
             ],
 		
-		AutoTerminationPolicy = {"IdleTimeout": 300},
+	#AutoTerminationPolicy = {"IdleTimeout": 300},
+	AutoTerminate=True,
         VisibleToAllUsers=True,
         JobFlowRole='barath_emrec2Admin',
         ServiceRole='barath_emrAdmin',
