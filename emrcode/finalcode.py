@@ -8,6 +8,7 @@ import sys
 import boto3
 from pyspark.sql.utils import AnalysisException
 
+
 # Initializing Spark
 
 spark = SparkSession.builder.appName("Demo").getOrCreate()
