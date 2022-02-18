@@ -56,15 +56,23 @@ def pre_validation(**kwargs):
         raise ValueError("No Data Available in the file")
 
 # Creates an EMR cluster
+def create_cluster(**kwargs):
+    region = 'us-east-1'
+    emr.client(region_name=region)
+    cluster_id = emr.create_cluster(region_name=region, cluster_name='Barath_Cluster', num_core_nodes=1)
+    return cluster_id
+    
+def waiting_for_cluster_to_start(**kwargs):
+    cluster_id = ti.xcom_pull(task_ids='create_cluster')
+    emr.wait_for_cluster_creation(cluster_id)
+    
 def livy_submit(**kwargs):
     spark_config_path = kwargs['dag_run'].conf['spark_config_path']
     final_code_path = kwargs['dag_run'].conf['final_code_path']
     datasetName = kwargs['dag_run'].conf['datasetName']
     dataset_path = kwargs['dag_run'].conf['dataset_path']
-    region = 'us-east-1'
-    emr.client(region_name=region)
-    cluster_id = emr.create_cluster(region_name=region, cluster_name='Barath_Cluster', num_core_nodes=1)
-    emr.wait_for_cluster_creation(cluster_id)
+    cluster_id = ti.xcom_pull(task_ids='create_cluster')
+    
     cluster_dns = emr.get_cluster_dns(cluster_id)
     headers = emr.livy_task(cluster_dns, spark_config_path, final_code_path, datasetName, dataset_path)
     session_status = emr.track_statement_progress(cluster_dns, headers)
@@ -108,7 +116,7 @@ def post_validation(**kwargs):
 dag_args = {
     'owner': 'airflow',
     'depends_on_past': False,
-    'start_date': datetime(2022, 2, 14),
+    'start_date': datetime(2022, 2, 1),
     'email': ['barath.srinivasa@tigeranalytics.com'],
     'email_on_failure': True,
     'email_on_retry': True,
@@ -118,7 +126,7 @@ dag_args = {
 
 dag = DAG(
     dag_id='final_dag',
-    start_date=datetime(2022, 2, 14),
+    start_date=datetime(2022, 2, 1),
     default_args=dag_args,
     max_active_runs=1,
     end_date=None,
@@ -141,6 +149,16 @@ pre_validation = PythonOperator(
         python_callable=pre_validation,
         dag=dag)
         
+create_cluster = PythonOperator(
+        task_id="create_cluster",
+        python_callable=create_cluster,
+        dag=dag)
+        
+waiting_for_cluster_to_start = PythonOperator(
+        task_id="waiting_for_cluster_to_start",
+        python_callable=waiting_for_cluster_to_start,
+        dag=dag)  
+        
 livy_submit = PythonOperator(
         task_id="livy_submit",
         python_callable=livy_submit,
@@ -152,4 +170,4 @@ post_validation = PythonOperator(
         dag=dag)
         
         
-config_data >> copy_data >> pre_validation >> livy_submit >> post_validation
+config_data >> copy_data >> pre_validation >> create_cluster >> waiting_for_cluster_to_start >> livy_submit >> post_validation
