@@ -56,21 +56,15 @@ def pre_validation(**kwargs):
         raise ValueError("No Data Available in the file")
 
 # Creates an EMR cluster
-def create_cluster(**kwargs):
-    region = 'us-east-1'
-    emr.client(region_name=region)
-    cluster_id = emr.create_cluster(region_name=region, cluster_name='Barath_Cluster', num_core_nodes=1)
-    emr.wait_for_cluster_creation(cluster_id)
-    return cluster_id
-    
 def livy_submit(**kwargs):
     spark_config_path = kwargs['dag_run'].conf['spark_config_path']
     final_code_path = kwargs['dag_run'].conf['final_code_path']
     datasetName = kwargs['dag_run'].conf['datasetName']
     dataset_path = kwargs['dag_run'].conf['dataset_path']
-    ti = kwargs['ti']
-    cluster_id = ti.xcom_pull(task_ids='create_cluster')
-    
+    region = 'us-east-1'
+    emr.client(region_name=region)
+    cluster_id = emr.create_cluster(region_name=region, cluster_name='Barath_Cluster', num_core_nodes=1)
+    emr.wait_for_cluster_creation(cluster_id)
     cluster_dns = emr.get_cluster_dns(cluster_id)
     headers = emr.livy_task(cluster_dns, spark_config_path, final_code_path, datasetName, dataset_path)
     session_status = emr.track_statement_progress(cluster_dns, headers)
@@ -147,11 +141,6 @@ pre_validation = PythonOperator(
         python_callable=pre_validation,
         dag=dag)
         
-create_cluster = PythonOperator(
-        task_id="create_cluster",
-        python_callable=create_cluster,
-        dag=dag) 
-        
 livy_submit = PythonOperator(
         task_id="livy_submit",
         python_callable=livy_submit,
@@ -163,4 +152,4 @@ post_validation = PythonOperator(
         dag=dag)
         
         
-config_data >> copy_data >> pre_validation >> create_cluster >> livy_submit >> post_validation
+config_data >> copy_data >> pre_validation >> livy_submit >> post_validation
