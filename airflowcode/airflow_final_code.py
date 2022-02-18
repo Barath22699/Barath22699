@@ -63,6 +63,7 @@ def create_cluster(**kwargs):
     return cluster_id
     
 def waiting_for_cluster_to_start(**kwargs):
+    ti = kwargs['ti']
     cluster_id = ti.xcom_pull(task_ids='create_cluster')
     emr.wait_for_cluster_creation(cluster_id)
     
@@ -71,6 +72,7 @@ def livy_submit(**kwargs):
     final_code_path = kwargs['dag_run'].conf['final_code_path']
     datasetName = kwargs['dag_run'].conf['datasetName']
     dataset_path = kwargs['dag_run'].conf['dataset_path']
+    ti = kwargs['ti']
     cluster_id = ti.xcom_pull(task_ids='create_cluster')
     
     cluster_dns = emr.get_cluster_dns(cluster_id)
